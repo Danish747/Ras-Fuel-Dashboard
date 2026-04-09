@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Transfer Dashboard (Offline)</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d1117">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Fuel Transfer">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark-1: #0d1117;
+            --bg-dark-2: #1c2128;
+            --bg-dark-3: #30363d;
+            --bg-dark-4: #010409;
+            --border-color: #444c56;
+            --text-light-1: #e6edf3;
+            --text-light-2: #9ca3af;
+            --color-cyan: #22d3ee;
+            --color-amber: #f59e0b;
+            --color-red: #dc2626;
+            --color-red-dark: #b91c1c;
+            --color-green: #22c55e;
+        }
+
+        body.night-mode {
+            --bg-dark-1: #0a0000;
+            --bg-dark-2: #140000;
+            --bg-dark-3: #200000;
+            --bg-dark-4: #050000;
+            --border-color: #3a1a1a;
+            --text-light-1: #ff9999;
+            --text-light-2: #cc5555;
+            --color-cyan: #ff4444;
+            --color-amber: #ff6600;
+            filter: brightness(0.85);
+        }
+
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            background-color: var(--bg-dark-1);
+            color: var(--text-light-1);
+            margin: 0; padding: 0;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container { max-width: 820px; margin: 0 auto; padding: 0 12px 40px; }
+
+        /* HEADER */
+        .app-header {
+            background: var(--bg-dark-2);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky; top: 0; z-index: 200;
+        }
+        .app-header h1 { color: var(--color-cyan); font-size: 1.1em; margin: 0; letter-spacing: 0.04em; }
+        .header-controls { display: flex; gap: 8px; }
+        .icon-btn {
+            background: var(--bg-dark-3);
+            border: 1px solid var(--border-color);
+            color: var(--text-light-2);
+            border-radius: 8px;
+            padding: 9px 13px;
+            cursor: pointer;
+            font-size: 1.05em;
+            line-height: 1;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .icon-btn:hover { color: var(--text-light-1); border-color: var(--color-cyan); }
+        .icon-btn.night-on { color: var(--color-amber); border-color: var(--color-amber); }
+        .icon-btn.wake-on  { color: var(--color-green);  border-color: var(--color-green); }
+
+        /* SECTION */
+        .section { padding-top: 16px; }
+
+        h2 { font-size: 1.1em; margin-bottom: 14px; }
+
+        /* OP INFO */
+        .op-card {
+            background: var(--bg-dark-2);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-bottom: 16px;
+        }
+        .op-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        @media (min-width: 580px) { .op-grid { grid-template-columns: 1fr 1fr 1fr; } }
+
+        /* TOTALS */
+        .totals-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .card {
+            background-color: var(--bg-dark-2);
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: background-color 0.1s;
+        }
+        .card.mb { margin-bottom: 16px; }
+        .card-label {
+            display: block;
+            font-size: 0.78em;
+            color: var(--text-light-2);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 4px;
+        }
+        .digital-display {
+            font-family: "Courier New", Courier, monospace;
+            letter-spacing: 0.05em;
+            font-size: clamp(1.4em, 5vw, 2em);
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        .digital-display .unit { font-size: 0.55em; color: var(--text-light-2); }
+        #total-fuel { color: var(--color-cyan); }
+        #total-time { color: var(--text-light-1); }
+        #eta-display { font-family: monospace; font-size: 0.88em; color: var(--color-amber); margin-top: 6px; min-height: 1.2em; }
+        #total-tons-display { font-family: monospace; font-size: 0.85em; color: var(--color-amber); margin-top: 4px; }
+        #avg-flow-display { font-family: monospace; font-size: 0.8em; color: var(--text-light-2); margin-top: 6px; }
+
+        .alarm-flash { animation: alarm-flasher 0.5s linear infinite; }
+        @keyframes alarm-flasher {
+            0%, 100% { background-color: #7f1d1d; }
+            50%       { background-color: #dc2626; }
+        }
+
+        /* FUEL TYPE */
+        .fuel-type-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .fuel-type-btn {
+            flex: 1; min-width: 68px;
+            padding: 11px 6px;
+            background: var(--bg-dark-3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-light-2);
+            font-size: 0.8em; font-weight: 700;
+            cursor: pointer; text-align: center;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .fuel-type-btn.active { background: var(--bg-dark-4); border-color: var(--color-cyan); color: var(--color-cyan); }
+        .fuel-type-btn span { display: block; font-size: 0.72em; font-weight: normal; color: var(--text-light-2); margin-top: 1px; }
+        .fuel-type-btn.active span { color: var(--color-cyan); opacity: 0.7; }
+        .density-note { font-size: 0.78em; color: var(--text-light-2); font-family: monospace; margin-bottom: 14px; }
+
+        /* INPUTS */
+        label { display: block; font-weight: 500; color: var(--text-light-2); margin-bottom: 6px; font-size: 0.85em; }
+        input[type="number"], input[type="text"], select, textarea {
+            width: 100%;
+            padding: 14px;
+            font-size: 1em;
+            background-color: var(--bg-dark-3);
+            color: var(--text-light-1);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--color-cyan);
+            box-shadow: 0 0 0 3px rgba(34,211,238,0.15);
+        }
+        textarea { resize: vertical; min-height: 72px; }
+
+        .alarm-card { background: var(--bg-dark-3); padding: 14px; border-radius: 10px; margin-bottom: 14px; }
+        .alarm-flex  { display: flex; gap: 10px; }
+        .alarm-card input { flex-grow: 1; }
+        .control-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+
+        /* BUTTONS — large for wet hands */
+        button {
+            width: 100%;
+            padding: 18px 20px;
+            font-size: 1.05em;
+            font-weight: bold;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 0.02em;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        button:active:not(:disabled) { transform: scale(0.97); }
+        button:disabled { background-color: var(--bg-dark-3) !important; color: var(--text-light-2) !important; cursor: not-allowed; transform: none !important; }
+
+        #set-target-btn { background: var(--color-amber); color: #000; padding: 14px 18px; font-size: 0.95em; width: auto; min-width: 80px; border-radius: 10px; }
+        #start-stop-btn { background: var(--color-cyan); color: var(--bg-dark-1); font-size: 1.1em; padding: 20px; }
+        #start-stop-btn.stop-state { background: var(--color-red); color: white; }
+        #log-interval-btn { background: var(--color-amber); color: #000; margin-top: 12px; font-size: 1.1em; padding: 20px; }
+
+        /* LIVE BOX */
+        #current-interval-box { background: var(--bg-dark-4); border: 1px solid var(--border-color); margin-bottom: 16px; }
+        .current-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .blink-live { width: 11px; height: 11px; background: var(--color-red); border-radius: 50%; animation: blinker 1.5s linear infinite; display: inline-block; margin-right: 8px; }
+        @keyframes blinker { 50% { opacity: 0.25; } }
+        .current-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: center; }
+        @media (min-width: 580px) { .current-grid { grid-template-columns: repeat(4, 1fr); } }
+        .current-grid .card-label { color: var(--color-amber); }
+        .current-grid .digital-display { font-size: 1.45em; }
+
+        /* LOG */
+        .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+        .log-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .log-buttons button { width: auto; padding: 11px 16px; font-size: 0.82em; font-weight: 700; border-radius: 8px; }
+        #save-log-btn { background: var(--color-cyan);      color: var(--bg-dark-1); }
+        #save-pdf-btn { background: var(--color-green);     color: #000; }
+        #reset-btn    { background: var(--color-red-dark);  color: white; }
+
+        .log-wrapper { height: 260px; overflow-y: auto; background: var(--bg-dark-3); border-radius: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { position: sticky; top: 0; background: var(--bg-dark-2); }
+        th, td { padding: 9px 11px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { font-size: 0.7em; color: var(--text-light-2); text-transform: uppercase; letter-spacing: 0.05em; }
+        tbody tr { font-family: "Courier New", Courier, monospace; font-size: 0.82em; }
+        td.fuel-total  { color: var(--color-cyan);  font-weight: bold; text-align: right; }
+        td.tons-col    { color: var(--color-amber); text-align: right; }
+        td.placeholder { text-align: center; font-family: sans-serif; color: var(--text-light-2); padding: 32px; }
+        td.remarks-cell { color: var(--text-light-2); font-style: italic; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* MODALS */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; padding: 16px; z-index: 300; }
+        .modal-content { background: var(--bg-dark-2); width: 100%; max-width: 480px; padding: 24px; border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); max-height: 90vh; overflow-y: auto; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .modal-buttons button { width: auto; padding: 12px 20px; font-size: 0.95em; }
+
+        /* SUMMARY */
+        .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+        .summary-stat { background: var(--bg-dark-3); border-radius: 8px; padding: 12px; text-align: center; }
+        .summary-stat .s-label { font-size: 0.7em; color: var(--text-light-2); text-transform: uppercase; letter-spacing: 0.08em; }
+        .summary-stat .s-value { font-family: monospace; font-size: 1.35em; color: var(--color-cyan); margin-top: 4px; }
+        .summary-stat .s-value.amber { color: var(--color-amber); }
+
+        .hidden { display: none !important; }
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-header">
+        <h1>⛽ RAS Fuel Transfer Dashboard</h1>
+        <div class="header-controls">
+            <span id="save-indicator" style="font-size:0.7em; color:var(--color-green); font-family:monospace; opacity:0; transition:opacity 0.4s; white-space:nowrap;">✔ SAVED</span>
+            <button class="icon-btn" id="wake-lock-btn" title="Keep screen on">🔆</button>
+            <button class="icon-btn" id="night-mode-btn" title="Night vision mode">🌙</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="section">
+
+            <!-- OP INFO -->
+            <div class="op-card">
+                <h2 style="margin-bottom:12px;">Operation Details</h2>
+                <div class="op-grid">
+                    <div>
+                        <label>Receiving Ship</label>
+                        <input type="text" id="receiving-ship" placeholder="e.g. PNS ZULFIQUAR">
+                    </div>
+                    <div>
+                        <label>Supplying Ship</label>
+                        <input type="text" id="supplying-ship" placeholder="e.g. PNS MOAWIN">
+                    </div>
+                    <div>
+                        <label>Operation Ref</label>
+                        <input type="text" id="op-id" placeholder="e.g. RAS-2026-001">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TOTALS -->
+            <div class="totals-grid">
+                <div id="total-fuel-card" class="card">
+                    <label class="card-label">Total Fuel Transferred</label>
+                    <div id="total-fuel" class="digital-display">0.00 <span class="unit">L</span></div>
+                    <div id="total-tons-display">0.000 MT</div>
+                    <div id="eta-display">—</div>
+                </div>
+                <div class="card">
+                    <label class="card-label">Total Elapsed Time</label>
+                    <div id="total-time" class="digital-display">00:00:00</div>
+                    <div id="avg-flow-display">Avg Flow: — L/min</div>
+                </div>
+            </div>
+
+            <!-- CONTROL PANEL -->
+            <div class="card mb">
+                <h2>Control Panel</h2>
+
+                <label style="margin-bottom:8px;">Fuel Type</label>
+                <div class="fuel-type-bar" id="fuel-type-bar">
+                    <button class="fuel-type-btn active" data-type="F-76" data-density="0.870">F-76 <span>Naval Diesel</span><span>0.870 kg/L</span></button>
+                    <button class="fuel-type-btn" data-type="MGO" data-density="0.845">MGO <span>Marine Gas Oil</span><span>0.845 kg/L</span></button>
+                    <button class="fuel-type-btn" data-type="HSD" data-density="0.850">HSD <span>High Speed Diesel</span><span>0.850 kg/L</span></button>
+                    <button class="fuel-type-btn" data-type="JP-5" data-density="0.813">JP-5 <span>Aviation</span><span>0.813 kg/L</span></button>
+                </div>
+                <div class="density-note" id="density-note">Density: 0.870 kg/L — MT = L × 0.870 / 1000</div>
+
+                <div class="alarm-card">
+                    <label for="fuel-target-input">Fuel Target Alarm (Litres)</label>
+                    <div class="alarm-flex">
+                        <input type="number" id="fuel-target-input" placeholder="e.g., 50000">
+                        <button id="set-target-btn">SET</button>
+                    </div>
+                    <div id="current-target-display" style="font-size:0.85em; color:var(--text-light-2); margin-top:6px;">No target set.</div>
+                </div>
+
+                <div class="control-inputs">
+                    <div>
+                        <label for="current-pressure">Pressure (bar)</label>
+                        <input type="number" id="current-pressure" placeholder="e.g., 1.5" step="0.1">
+                    </div>
+                    <div>
+                        <label for="current-flow-rate">Flow Rate (L/min)</label>
+                        <input type="number" id="current-flow-rate" placeholder="e.g., 500" step="1">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="interval-remarks">Interval Remarks (optional)</label>
+                    <textarea id="interval-remarks" placeholder="e.g. Reduced flow — course change at 14:32. Hose 2 kinked briefly."></textarea>
+                </div>
+
+                <div style="margin-top:14px;">
+                    <button id="start-stop-btn">START OPERATION &amp; LOG FIRST INTERVAL</button>
+                    <button id="log-interval-btn" class="hidden">⏱ LOG INTERVAL &amp; START NEW</button>
+                </div>
+            </div>
+
+            <!-- LIVE INTERVAL -->
+            <div id="current-interval-box" class="card hidden mb">
+                <div class="current-header">
+                    <h2 style="margin:0;">CURRENT INTERVAL</h2>
+                    <div><span class="blink-live"></span><span style="color:var(--color-red); font-weight:bold;">LIVE</span></div>
+                </div>
+                <div class="current-grid">
+                    <div>
+                        <div class="card-label">PRESSURE</div>
+                        <div id="active-pressure" class="digital-display">-- bar</div>
+                    </div>
+                    <div>
+                        <div class="card-label">FLOW RATE</div>
+                        <div id="active-flow-rate" class="digital-display">-- L/m</div>
+                    </div>
+                    <div>
+                        <div class="card-label">INTERVAL TIME</div>
+                        <div id="current-timer" class="digital-display">00:00:00</div>
+                    </div>
+                    <div>
+                        <div class="card-label">INTERVAL FUEL</div>
+                        <div id="live-fuel" class="digital-display">0.00 <span class="unit">L</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOG BOOK -->
+            <div class="card">
+                <div class="log-header">
+                    <h2 style="margin:0;">Transfer Log</h2>
+                    <div class="log-buttons">
+                        <button id="save-log-btn" disabled>CSV</button>
+                        <button id="save-pdf-btn" disabled>PDF Report</button>
+                        <button id="reset-btn">Reset</button>
+                    </div>
+                </div>
+                <div class="log-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Duration</th>
+                                <th>Bar</th>
+                                <th>L/min</th>
+                                <th style="text-align:right;">Fuel (L)</th>
+                                <th style="text-align:right;">MT</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-book-list">
+                            <tr id="log-placeholder-row">
+                                <td colspan="9" class="placeholder">No intervals logged yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- RESET MODAL -->
+    <div id="reset-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="font-size:1.4em; margin-top:0;">Reset All Data?</h3>
+            <p style="color:var(--text-light-2); margin-top:12px;">This will clear all totals, intervals, and logs. Cannot be undone.</p>
+            <div class="modal-buttons">
+                <button id="cancel-reset" style="background:#48515c; color:white;">Cancel</button>
+                <button id="confirm-reset" style="background:var(--color-red); color:white;">Confirm Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUMMARY MODAL -->
+    <div id="summary-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="font-size:1.4em; margin-top:0; color:var(--color-cyan);">✅ Operation Complete</h3>
+            <div class="summary-grid" id="summary-grid"></div>
+            <div style="background:var(--bg-dark-3); border-radius:8px; padding:12px; margin-top:4px;">
+                <div style="font-size:0.75em; color:var(--text-light-2); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Operation Info</div>
+                <div id="summary-op-info" style="font-family:monospace; font-size:0.88em; color:var(--text-light-1); line-height:1.9;"></div>
+            </div>
+            <div class="modal-buttons">
+                <button id="summary-pdf-btn" style="background:var(--color-green); color:#000;">Save PDF Report</button>
+                <button id="summary-close-btn" style="background:#48515c; color:white;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ─── FUEL TYPES ───────────────────────────────────────────────────────────
+    let currentFuelType = 'F-76';
+    let currentDensity  = 0.870;
+
+    document.getElementById('fuel-type-bar').addEventListener('click', e => {
+        const btn = e.target.closest('.fuel-type-btn');
+        if (!btn) return;
+        document.querySelectorAll('.fuel-type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFuelType = btn.dataset.type;
+        currentDensity  = parseFloat(btn.dataset.density);
+        document.getElementById('density-note').textContent =
+            `Density: ${currentDensity.toFixed(3)} kg/L — MT = L × ${currentDensity.toFixed(3)} / 1000`;
+        updateTotalFuelDisplay(totalFuel);
+    });
+
+    function litresToTons(l) { return (l * currentDensity) / 1000; }
+
+    // ─── WAKE LOCK ────────────────────────────────────────────────────────────
+    let wakeLock = null;
+    const wakeLockBtn = document.getElementById('wake-lock-btn');
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLockBtn.classList.add('wake-on');
+                wakeLock.addEventListener('release', () => wakeLockBtn.classList.remove('wake-on'));
+            }
+        } catch(e) { console.warn('Wake lock:', e); }
+    }
+    async function releaseWakeLock() {
+        if (wakeLock) { await wakeLock.release(); wakeLock = null; }
+        wakeLockBtn.classList.remove('wake-on');
+    }
+    wakeLockBtn.addEventListener('click', () => { wakeLock ? releaseWakeLock() : requestWakeLock(); });
+    document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && isOperationRunning && !wakeLock) requestWakeLock();
+    });
+
+    // ─── NIGHT MODE ───────────────────────────────────────────────────────────
+    const nightBtn = document.getElementById('night-mode-btn');
+    nightBtn.addEventListener('click', () => {
+        document.body.classList.toggle('night-mode');
+        nightBtn.classList.toggle('night-on');
+    });
+
+    // ─── DOM REFS ─────────────────────────────────────────────────────────────
+    const totalFuelCard        = document.getElementById('total-fuel-card');
+    const totalFuelEl          = document.getElementById('total-fuel');
+    const totalTonsEl          = document.getElementById('total-tons-display');
+    const totalTimeEl          = document.getElementById('total-time');
+    const etaDisplay           = document.getElementById('eta-display');
+    const avgFlowDisplay       = document.getElementById('avg-flow-display');
+    const startStopBtn         = document.getElementById('start-stop-btn');
+    const currentPressureInput = document.getElementById('current-pressure');
+    const currentFlowRateInput = document.getElementById('current-flow-rate');
+    const intervalRemarksInput = document.getElementById('interval-remarks');
+    const logIntervalBtn       = document.getElementById('log-interval-btn');
+    const currentIntervalBox   = document.getElementById('current-interval-box');
+    const activePressureEl     = document.getElementById('active-pressure');
+    const activeFlowRateEl     = document.getElementById('active-flow-rate');
+    const currentTimerEl       = document.getElementById('current-timer');
+    const liveFuelEl           = document.getElementById('live-fuel');
+    const logBookList          = document.getElementById('log-book-list');
+    const resetBtn             = document.getElementById('reset-btn');
+    const resetModal           = document.getElementById('reset-modal');
+    const cancelReset          = document.getElementById('cancel-reset');
+    const confirmReset         = document.getElementById('confirm-reset');
+    const fuelTargetInput      = document.getElementById('fuel-target-input');
+    const setTargetBtn         = document.getElementById('set-target-btn');
+    const currentTargetDisplay = document.getElementById('current-target-display');
+    const saveLogBtn           = document.getElementById('save-log-btn');
+    const savePdfBtn           = document.getElementById('save-pdf-btn');
+    const summaryModal         = document.getElementById('summary-modal');
+    const summaryGrid          = document.getElementById('summary-grid');
+    const summaryOpInfo        = document.getElementById('summary-op-info');
+    const summaryPdfBtn        = document.getElementById('summary-pdf-btn');
+    const summaryCloseBtn      = document.getElementById('summary-close-btn');
+
+    let audioCtx = null;
+
+    // ─── STATE ────────────────────────────────────────────────────────────────
+    let totalFuel = 0, totalTimeSeconds = 0, intervalCount = 0;
+    let isOperationRunning = false;
+    let globalTimer = null, currentIntervalTimer = null, currentIntervalStartTime = 0;
+    let currentPressure = 0, currentFlowRate = 0;
+    let fuelTarget = null, isAlarmTriggered = false;
+    let logData = [];
+
+    // ─── AUDIO ────────────────────────────────────────────────────────────────
+    function playBeep() {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            osc.start(audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.3);
+            osc.stop(audioCtx.currentTime + 0.3);
+        } catch(e) {}
+    }
+    function triggerAlarm() {
+        isAlarmTriggered = true;
+        totalFuelCard.classList.add('alarm-flash');
+        playBeep(); setTimeout(playBeep, 400); setTimeout(playBeep, 800);
+    }
+
+    // ─── HELPERS ─────────────────────────────────────────────────────────────
+    function formatTime(s) {
+        s = Math.max(0, s);
+        return [Math.floor(s/3600), Math.floor((s%3600)/60), s%60]
+            .map(n => n.toString().padStart(2,'0')).join(':');
+    }
+    function formatTimestamp(d) {
+        if (!d) return '--:--:--';
+        return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => n.toString().padStart(2,'0')).join(':');
+    }
+    function formatDate(d) {
+        return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
+    }
+
+    function updateTotalFuelDisplay(fuel) {
+        totalFuelEl.innerHTML = `${fuel.toFixed(2)} <span class="unit">L</span>`;
+        totalTonsEl.textContent = `${litresToTons(fuel).toFixed(3)} MT`;
+    }
+
+    function updateETA(liveFuel) {
+        if (fuelTarget === null || currentFlowRate <= 0) { etaDisplay.textContent = '—'; return; }
+        const rem = fuelTarget - liveFuel;
+        if (rem <= 0) { etaDisplay.textContent = '✅ Target reached'; return; }
+        const mins = rem / currentFlowRate;
+        const h = Math.floor(mins / 60), m = Math.floor(mins % 60);
+        etaDisplay.textContent = `ETA: ${h > 0 ? h + 'h ' : ''}${m}min remaining`;
+    }
+
+    function updateAvgFlow() {
+        if (totalTimeSeconds > 0 && totalFuel > 0) {
+            avgFlowDisplay.textContent = `Avg Flow: ${((totalFuel / totalTimeSeconds) * 60).toFixed(1)} L/min`;
+        }
+    }
+
+    function validateInputs() {
+        let ok = true;
+        const p = parseFloat(currentPressureInput.value);
+        const f = parseFloat(currentFlowRateInput.value);
+        if (isNaN(p) || p < 0) {
+            currentPressureInput.classList.add('shake');
+            setTimeout(() => currentPressureInput.classList.remove('shake'), 500);
+            ok = false;
+        }
+        if (isNaN(f) || f <= 0) {
+            currentFlowRateInput.classList.add('shake');
+            setTimeout(() => currentFlowRateInput.classList.remove('shake'), 500);
+            ok = false;
+        }
+        return ok;
+    }
+
+    // ─── LIVE UPDATE ─────────────────────────────────────────────────────────
+    function updateCurrentInterval() {
+        if (!currentIntervalStartTime) return;
+        const elapsed = Math.floor((Date.now() - currentIntervalStartTime) / 1000);
+        currentTimerEl.textContent = formatTime(elapsed);
+        const liveFuel = (currentFlowRate / 60) * elapsed;
+        liveFuelEl.innerHTML = `${liveFuel.toFixed(2)} <span class="unit">L</span>`;
+        const liveTotalFuel = totalFuel + liveFuel;
+        updateTotalFuelDisplay(liveTotalFuel);
+        updateETA(liveTotalFuel);
+        if (fuelTarget !== null && liveTotalFuel >= fuelTarget && !isAlarmTriggered) triggerAlarm();
+    }
+
+    // ─── LOG ENTRY ────────────────────────────────────────────────────────────
+    function addLogEntry(interval, startTime, endTime, durSec, pressure, flow, fuel, remarks) {
+        const ph = document.getElementById('log-placeholder-row');
+        if (ph) ph.remove();
+        const tons = litresToTons(fuel);
+        logData.push({ interval, startTime, endTime, durationSeconds: durSec,
+                       pressure, flowRate: flow, fuel, tons, remarks,
+                       fuelType: currentFuelType, density: currentDensity });
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${interval}</td>
+            <td>${formatTimestamp(startTime)}</td>
+            <td>${formatTimestamp(endTime)}</td>
+            <td>${formatTime(durSec)}</td>
+            <td>${pressure.toFixed(1)}</td>
+            <td>${flow.toFixed(1)}</td>
+            <td class="fuel-total">${fuel.toFixed(2)}</td>
+            <td class="tons-col">${tons.toFixed(3)}</td>
+            <td class="remarks-cell" title="${remarks || ''}">${remarks || '—'}</td>
+        `;
+        logBookList.prepend(tr);
+        saveLogBtn.disabled = false;
+        savePdfBtn.disabled = false;
+        saveSession();
+        return tr;
+    }
+
+    // ─── CORE ─────────────────────────────────────────────────────────────────
+    function logAndFinalizeInterval(endTime) {
+        if (!currentIntervalTimer) return null;
+        clearInterval(currentIntervalTimer);
+        currentIntervalTimer = null;
+        const durSec = Math.round((endTime.getTime() - currentIntervalStartTime) / 1000);
+        if (durSec > 0) {
+            const fuel    = (currentFlowRate / 60) * durSec;
+            const remarks = intervalRemarksInput.value.trim();
+            totalFuel    += fuel;
+            intervalCount++;
+            const entry = addLogEntry(intervalCount, new Date(currentIntervalStartTime),
+                                      endTime, durSec, currentPressure, currentFlowRate, fuel, remarks);
+            updateTotalFuelDisplay(totalFuel);
+            updateAvgFlow();
+            intervalRemarksInput.value = '';
+            return entry;
+        }
+        return null;
+    }
+
+    function startNewInterval(pressure, flow, startTime) {
+        currentPressure = pressure; currentFlowRate = flow;
+        currentIntervalStartTime = startTime;
+        currentIntervalBox.classList.remove('hidden');
+        activePressureEl.textContent = `${pressure.toFixed(1)} bar`;
+        activeFlowRateEl.textContent = `${flow.toFixed(1)} L/m`;
+        currentTimerEl.textContent   = '00:00:00';
+        liveFuelEl.innerHTML          = '0.00 <span class="unit">L</span>';
+        currentPressureInput.value    = '';
+        currentFlowRateInput.value    = '';
+        currentPressureInput.focus();
+        currentIntervalTimer = setInterval(updateCurrentInterval, 1000);
+    }
+
+    function handleStartStop() {
+        if (isOperationRunning) { stopOperation(); return; }
+        if (!validateInputs()) return;
+        isOperationRunning = true;
+        startStopBtn.textContent = 'STOP OPERATION';
+        startStopBtn.classList.add('stop-state');
+        logIntervalBtn.classList.remove('hidden');
+        totalTimeSeconds = 0;
+        globalTimer = setInterval(() => {
+            totalTimeSeconds++;
+            totalTimeEl.textContent = formatTime(totalTimeSeconds);
+            updateAvgFlow();
+        }, 1000);
+        startNewInterval(parseFloat(currentPressureInput.value), parseFloat(currentFlowRateInput.value), Date.now());
+        requestWakeLock();
+        saveSession();
+    }
+
+    function handleLogInterval() {
+        if (!validateInputs()) return;
+        logAndFinalizeInterval(new Date());
+        startNewInterval(parseFloat(currentPressureInput.value), parseFloat(currentFlowRateInput.value), Date.now());
+    }
+
+    function stopOperation() {
+        isOperationRunning = false;
+        startStopBtn.textContent = 'START OPERATION & LOG FIRST INTERVAL';
+        startStopBtn.classList.remove('stop-state');
+        logIntervalBtn.classList.add('hidden');
+        if (globalTimer) { clearInterval(globalTimer); globalTimer = null; }
+        const finalEntry = logAndFinalizeInterval(new Date());
+        if (finalEntry) finalEntry.cells[0].innerHTML += ' <span style="font-size:0.75em;color:var(--color-red);">(END)</span>';
+        currentIntervalStartTime = 0;
+        currentIntervalBox.classList.add('hidden');
+        updateTotalFuelDisplay(totalFuel);
+        releaseWakeLock();
+        saveSession();
+        showSummary();
+    }
+
+    // ─── SUMMARY ──────────────────────────────────────────────────────────────
+    function showSummary() {
+        const avgFlow = totalTimeSeconds > 0 ? ((totalFuel / totalTimeSeconds) * 60).toFixed(1) : '—';
+        summaryGrid.innerHTML = `
+            <div class="summary-stat"><div class="s-label">Total Fuel</div><div class="s-value">${totalFuel.toFixed(2)} L</div></div>
+            <div class="summary-stat"><div class="s-label">Metric Tons</div><div class="s-value amber">${litresToTons(totalFuel).toFixed(3)} MT</div></div>
+            <div class="summary-stat"><div class="s-label">Total Time</div><div class="s-value">${formatTime(totalTimeSeconds)}</div></div>
+            <div class="summary-stat"><div class="s-label">Avg Flow Rate</div><div class="s-value amber">${avgFlow} L/min</div></div>
+            <div class="summary-stat"><div class="s-label">Intervals</div><div class="s-value">${intervalCount}</div></div>
+            <div class="summary-stat"><div class="s-label">Fuel Type</div><div class="s-value">${currentFuelType}</div></div>
+        `;
+        const s1 = document.getElementById('receiving-ship').value || '—';
+        const s2 = document.getElementById('supplying-ship').value || '—';
+        const op = document.getElementById('op-id').value || '—';
+        summaryOpInfo.innerHTML = `Receiver : ${s1}<br>Supplier : ${s2}<br>Op Ref   : ${op}<br>Date     : ${formatDate(new Date())}`;
+        summaryModal.style.display = 'flex';
+    }
+    summaryCloseBtn.addEventListener('click', () => { summaryModal.style.display = 'none'; });
+    summaryModal.addEventListener('click', e => { if (e.target === summaryModal) summaryModal.style.display = 'none'; });
+
+    // ─── TARGET ───────────────────────────────────────────────────────────────
+    setTargetBtn.addEventListener('click', () => {
+        const t = parseFloat(fuelTargetInput.value);
+        if (!isNaN(t) && t > 0) {
+            fuelTarget = t;
+            currentTargetDisplay.textContent = `Target: ${t.toFixed(0)} L  (${litresToTons(t).toFixed(3)} MT)`;
+            currentTargetDisplay.style.color = 'var(--color-amber)';
+            isAlarmTriggered = false;
+            totalFuelCard.classList.remove('alarm-flash');
+            saveSession();
+        } else {
+            fuelTarget = null;
+            currentTargetDisplay.textContent = 'Invalid target.';
+            currentTargetDisplay.style.color = 'var(--text-light-2)';
+        }
+    });
+
+    // ─── CSV ──────────────────────────────────────────────────────────────────
+    function saveLogToFile() {
+        if (!logData.length) return;
+        const s1 = document.getElementById('receiving-ship').value || '';
+        const s2 = document.getElementById('supplying-ship').value || '';
+        const op = document.getElementById('op-id').value || '';
+        let csv = 'data:text/csv;charset=utf-8,';
+        csv += `--- RAS FUEL TRANSFER LOG ---\nReceiving Ship,${s1}\nSupplying Ship,${s2}\nOperation Ref,${op}\n`;
+        csv += `Fuel Type,${currentFuelType}\nDensity (kg/L),${currentDensity}\n`;
+        csv += `Total Fuel (L),${totalFuel.toFixed(2)}\nTotal Fuel (MT),${litresToTons(totalFuel).toFixed(3)}\nTotal Time,${formatTime(totalTimeSeconds)}\n\n`;
+        csv += 'Interval,Start,End,Duration,Pressure(bar),Flow(L/min),Fuel(L),Tons(MT),Remarks\n';
+        logData.forEach(e => {
+            csv += [e.interval, formatTimestamp(e.startTime), formatTimestamp(e.endTime),
+                    `"${formatTime(e.durationSeconds)}"`, e.pressure.toFixed(1), e.flowRate.toFixed(1),
+                    e.fuel.toFixed(2), e.tons.toFixed(3), `"${e.remarks || ''}"`].join(',') + '\n';
+        });
+        const now = new Date();
+        const link = document.createElement('a');
+        link.href = encodeURI(csv);
+        link.download = `RAS_Log_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}.csv`;
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+
+    // ─── PDF ──────────────────────────────────────────────────────────────────
+    function savePDFReport() {
+        const jsPDFLib = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        if (!jsPDFLib) { alert('PDF library not loaded. Open the app once with internet to cache it.'); return; }
+        const doc = new jsPDFLib({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const now = new Date();
+        const s1  = document.getElementById('receiving-ship').value || '—';
+        const s2  = document.getElementById('supplying-ship').value || '—';
+        const op  = document.getElementById('op-id').value || '—';
+        const avg = totalTimeSeconds > 0 ? ((totalFuel / totalTimeSeconds) * 60).toFixed(1) : '—';
+
+        // Dark header band
+        doc.setFillColor(13, 17, 23);
+        doc.rect(0, 0, 210, 38, 'F');
+        doc.setTextColor(34, 211, 238);
+        doc.setFont('courier', 'bold');
+        doc.setFontSize(16);
+        doc.text('RAS FUEL TRANSFER REPORT', 105, 14, { align: 'center' });
+        doc.setFontSize(8); doc.setTextColor(156, 163, 175);
+        doc.text(`Generated: ${formatDate(now)} ${formatTimestamp(now)}   |   Op Ref: ${op}`, 105, 22, { align: 'center' });
+        doc.text('UNCLASSIFIED', 105, 30, { align: 'center' });
+
+        // Op details box
+        doc.setFillColor(240, 243, 246);
+        doc.rect(10, 42, 190, 28, 'F');
+        doc.setFont('courier', 'bold'); doc.setFontSize(8); doc.setTextColor(80, 80, 80);
+        doc.text('OPERATION DETAILS', 14, 50);
+        doc.setFont('courier', 'normal'); doc.setTextColor(20, 20, 20);
+        doc.text(`Receiving Ship : ${s1}`, 14, 57);
+        doc.text(`Supplying Ship : ${s2}`, 110, 57);
+        doc.text(`Fuel Type : ${currentFuelType}   Density : ${currentDensity.toFixed(3)} kg/L`, 14, 64);
+
+        // Summary stats
+        doc.setFillColor(28, 33, 40);
+        doc.rect(10, 74, 190, 30, 'F');
+        doc.setFont('courier', 'bold'); doc.setFontSize(8); doc.setTextColor(34, 211, 238);
+        doc.text('TRANSFER SUMMARY', 14, 82);
+        doc.setFont('courier', 'normal'); doc.setTextColor(220, 230, 240);
+        doc.text(`Total Fuel : ${totalFuel.toFixed(2)} L  /  ${litresToTons(totalFuel).toFixed(3)} MT`, 14, 89);
+        doc.text(`Total Time : ${formatTime(totalTimeSeconds)}   Intervals : ${intervalCount}   Avg Flow : ${avg} L/min`, 14, 96);
+
+        // Interval table
+        doc.autoTable({
+            startY: 110,
+            head: [['#','Start','End','Duration','Bar','L/min','Fuel (L)','MT','Remarks']],
+            body: logData.map(e => [
+                e.interval, formatTimestamp(e.startTime), formatTimestamp(e.endTime),
+                formatTime(e.durationSeconds), e.pressure.toFixed(1), e.flowRate.toFixed(1),
+                e.fuel.toFixed(2), e.tons.toFixed(3), e.remarks || ''
+            ]),
+            styles: { font: 'courier', fontSize: 7.5, cellPadding: 2.5, textColor: [220,230,240], fillColor: [28,33,40] },
+            headStyles: { fillColor: [13,17,23], textColor: [34,211,238], fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [20,26,34] },
+            columnStyles: { 6: { halign: 'right' }, 7: { halign: 'right' } },
+            margin: { left: 10, right: 10 },
+        });
+
+        const pages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(6.5); doc.setTextColor(100,110,120);
+            doc.text(`Page ${i} of ${pages}  |  RAS Fuel Transfer Dashboard`, 105, 290, { align: 'center' });
+        }
+
+        const fname = `RAS_Report_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}.pdf`;
+        doc.save(fname);
+    }
+
+    // ─── RESET ────────────────────────────────────────────────────────────────
+    function resetCalculator() {
+        if (isOperationRunning) stopOperation();
+        totalFuel = 0; totalTimeSeconds = 0; intervalCount = 0;
+        currentPressure = 0; currentFlowRate = 0;
+        isOperationRunning = false;
+        if (globalTimer) clearInterval(globalTimer);
+        if (currentIntervalTimer) clearInterval(currentIntervalTimer);
+        globalTimer = null; currentIntervalTimer = null;
+        fuelTarget = null; isAlarmTriggered = false;
+        totalFuelCard.classList.remove('alarm-flash');
+        currentTargetDisplay.textContent = 'No target set.';
+        currentTargetDisplay.style.color = 'var(--text-light-2)';
+        fuelTargetInput.value = '';
+        logData = [];
+        saveLogBtn.disabled = true; savePdfBtn.disabled = true;
+        updateTotalFuelDisplay(0);
+        totalTimeEl.textContent    = '00:00:00';
+        etaDisplay.textContent     = '—';
+        avgFlowDisplay.textContent = 'Avg Flow: — L/min';
+        totalTonsEl.textContent    = '0.000 MT';
+        logBookList.innerHTML = '<tr id="log-placeholder-row"><td colspan="9" class="placeholder">No intervals logged yet.</td></tr>';
+        currentPressureInput.value = ''; currentFlowRateInput.value = ''; intervalRemarksInput.value = '';
+        currentIntervalBox.classList.add('hidden');
+        startStopBtn.textContent = 'START OPERATION & LOG FIRST INTERVAL';
+        startStopBtn.classList.remove('stop-state');
+        logIntervalBtn.classList.add('hidden');
+        resetModal.style.display = 'none';
+        summaryModal.style.display = 'none';
+        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+    }
+
+    // ─── PERSIST: SAVE & RESTORE ─────────────────────────────────────────────
+    const STORAGE_KEY = 'ras_fuel_session';
+    const saveIndicator = document.getElementById('save-indicator');
+    let saveIndicatorTimer = null;
+
+    function flashSaved() {
+        saveIndicator.style.opacity = '1';
+        clearTimeout(saveIndicatorTimer);
+        saveIndicatorTimer = setTimeout(() => { saveIndicator.style.opacity = '0'; }, 1800);
+    }
+
+    function saveSession() {
+        const session = {
+            totalFuel, totalTimeSeconds, intervalCount,
+            isOperationRunning,
+            currentPressure, currentFlowRate,
+            currentIntervalStartTime,
+            fuelTarget, isAlarmTriggered,
+            currentFuelType, currentDensity,
+            logData: logData.map(e => ({
+                ...e,
+                startTime: e.startTime ? e.startTime.getTime() : null,
+                endTime:   e.endTime   ? e.endTime.getTime()   : null,
+            })),
+            opFields: {
+                receivingShip: document.getElementById('receiving-ship').value,
+                supplyingShip: document.getElementById('supplying-ship').value,
+                opId:          document.getElementById('op-id').value,
+            },
+            savedAt: Date.now(),
+        };
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+            flashSaved();
+        } catch(e) { console.warn('Save failed:', e); }
+    }
+
+    // Auto-save every 10 seconds while running, and on every key action
+    setInterval(() => { if (isOperationRunning) saveSession(); }, 10000);
+
+    function restoreSession(s) {
+        // Restore scalars
+        totalFuel             = s.totalFuel || 0;
+        totalTimeSeconds      = s.totalTimeSeconds || 0;
+        intervalCount         = s.intervalCount || 0;
+        currentPressure       = s.currentPressure || 0;
+        currentFlowRate       = s.currentFlowRate || 0;
+        currentIntervalStartTime = s.currentIntervalStartTime || 0;
+        fuelTarget            = s.fuelTarget || null;
+        isAlarmTriggered      = s.isAlarmTriggered || false;
+        currentFuelType       = s.currentFuelType || 'F-76';
+        currentDensity        = s.currentDensity || 0.870;
+
+        // Restore fuel type button
+        document.querySelectorAll('.fuel-type-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.type === currentFuelType);
+        });
+        document.getElementById('density-note').textContent =
+            `Density: ${currentDensity.toFixed(3)} kg/L — MT = L × ${currentDensity.toFixed(3)} / 1000`;
+
+        // Restore op fields
+        if (s.opFields) {
+            document.getElementById('receiving-ship').value = s.opFields.receivingShip || '';
+            document.getElementById('supplying-ship').value = s.opFields.supplyingShip || '';
+            document.getElementById('op-id').value          = s.opFields.opId || '';
+        }
+
+        // Restore target display
+        if (fuelTarget !== null) {
+            fuelTargetInput.value = fuelTarget;
+            currentTargetDisplay.textContent = `Target: ${fuelTarget.toFixed(0)} L  (${litresToTons(fuelTarget).toFixed(3)} MT)`;
+            currentTargetDisplay.style.color = 'var(--color-amber)';
+        }
+
+        // Restore log entries (re-render table)
+        logData = [];
+        if (s.logData && s.logData.length) {
+            const ph = document.getElementById('log-placeholder-row');
+            if (ph) ph.remove();
+            // Render in order (they were prepended, so reverse for correct order)
+            [...s.logData].forEach(e => {
+                const startTime = e.startTime ? new Date(e.startTime) : null;
+                const endTime   = e.endTime   ? new Date(e.endTime)   : null;
+                const tons      = litresToTons(e.fuel);
+                logData.push({ ...e, startTime, endTime, tons });
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${e.interval}</td>
+                    <td>${formatTimestamp(startTime)}</td>
+                    <td>${formatTimestamp(endTime)}</td>
+                    <td>${formatTime(e.durationSeconds)}</td>
+                    <td>${e.pressure.toFixed(1)}</td>
+                    <td>${e.flowRate.toFixed(1)}</td>
+                    <td class="fuel-total">${e.fuel.toFixed(2)}</td>
+                    <td class="tons-col">${tons.toFixed(3)}</td>
+                    <td class="remarks-cell" title="${e.remarks || ''}">${e.remarks || '—'}</td>
+                `;
+                logBookList.appendChild(tr);
+            });
+            saveLogBtn.disabled = false;
+            savePdfBtn.disabled = false;
+        }
+
+        // Restore totals display
+        updateTotalFuelDisplay(totalFuel);
+        totalTimeEl.textContent    = formatTime(totalTimeSeconds);
+        avgFlowDisplay.textContent = totalTimeSeconds > 0 && totalFuel > 0
+            ? `Avg Flow: ${((totalFuel / totalTimeSeconds) * 60).toFixed(1)} L/min`
+            : 'Avg Flow: — L/min';
+
+        // Restore running operation
+        if (s.isOperationRunning && currentIntervalStartTime) {
+            isOperationRunning = true;
+            startStopBtn.textContent = 'STOP OPERATION';
+            startStopBtn.classList.add('stop-state');
+            logIntervalBtn.classList.remove('hidden');
+            // Resume global timer — account for time already elapsed
+            globalTimer = setInterval(() => {
+                totalTimeSeconds++;
+                totalTimeEl.textContent = formatTime(totalTimeSeconds);
+                updateAvgFlow();
+                saveSession();
+            }, 1000);
+            // Resume interval display
+            currentIntervalBox.classList.remove('hidden');
+            activePressureEl.textContent = `${currentPressure.toFixed(1)} bar`;
+            activeFlowRateEl.textContent = `${currentFlowRate.toFixed(1)} L/m`;
+            currentIntervalTimer = setInterval(updateCurrentInterval, 1000);
+            requestWakeLock();
+        }
+    }
+
+    function loadOnStart() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const s = JSON.parse(raw);
+            if (!s || (!s.totalFuel && !s.isOperationRunning && !s.intervalCount)) return;
+            const savedMins = Math.round((Date.now() - s.savedAt) / 60000);
+            const msg = s.isOperationRunning
+                ? `⚠️ An operation was in progress when the app closed (${savedMins} min ago).\n\nRestore the session?`
+                : `A previous session was found (${s.intervalCount} intervals, ${(s.totalFuel||0).toFixed(0)} L).\n\nRestore it?`;
+            if (confirm(msg)) {
+                restoreSession(s);
+            } else {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        } catch(e) { console.warn('Restore failed:', e); }
+    }
+
+    // Run restore on page load
+    loadOnStart();
+
+    // ─── EVENTS ───────────────────────────────────────────────────────────────
+    startStopBtn.addEventListener('click', handleStartStop);
+    logIntervalBtn.addEventListener('click', handleLogInterval);
+    resetBtn.addEventListener('click', () => { resetModal.style.display = 'flex'; });
+    cancelReset.addEventListener('click', () => { resetModal.style.display = 'none'; });
+    confirmReset.addEventListener('click', resetCalculator);
+    saveLogBtn.addEventListener('click', saveLogToFile);
+    savePdfBtn.addEventListener('click', savePDFReport);
+    summaryPdfBtn.addEventListener('click', savePDFReport);
+    resetModal.addEventListener('click', e => { if (e.target === resetModal) resetModal.style.display = 'none'; });
+
+    // Save on op field changes
+    ['receiving-ship','supplying-ship','op-id'].forEach(id => {
+        document.getElementById(id).addEventListener('change', saveSession);
+    });
+
+    // ─── SERVICE WORKER ───────────────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+    </script>
+</body>
+</html>
